@@ -36,7 +36,9 @@ La BRVM cote une cinquantaine de sociétés pour huit pays. L'information existe
 - **Envoie un résumé de clôture** chaque jour de bourse et des alertes sur les mouvements de la watchlist.
 - **Se finance par des crédits** rechargeables en Mobile Money, sans carte bancaire.
 
-Mblo est une aide à la décision. Il ne passe pas d'ordres et ne remplace pas une Société de Gestion et d'Intermédiation (SGI).
+Mblo est une aide à la décision. Il fait le travail de recherche, présente les chiffres et les risques, et l'utilisateur décide. Il ne passe pas d'ordres et ne remplace pas une Société de Gestion et d'Intermédiation (SGI).
+
+**Le ton** : un français correct mais simple, phrases courtes, chaque terme technique expliqué en quelques mots la première fois. Le jeune qui découvre la bourse et l'investisseur expérimenté doivent tous deux comprendre.
 
 ---
 
@@ -66,7 +68,7 @@ Principe directeur : **le LLM ne touche jamais aux données brutes**. L'ingestio
 |---|---|---|
 | **mblo-api** | Container App (FastAPI) | Le cœur. Reçoit les webhooks WhatsApp et paiement, identifie l'utilisateur, vérifie et débite les crédits, fait tourner l'agent, formate la réponse pour WhatsApp. Héberge aussi le worker d'envoi qui vide l'outbox à cadence limitée (20 messages/minute, délais aléatoires). |
 | **Job ingestion** | Container Apps Job, cron 16:30 UTC lun–ven | Scrape brvm.org (cours, volumes, indices) et SikaFinance (BPA, dividendes, actualités) en HTTP simple. Sauvegarde le brut dans Blob, calcule les indicateurs en Python (PER, rendement, moyennes mobiles 20 et 50 jours, RSI, plus haut et plus bas 52 semaines, volume anormal, comparaison sectorielle), insère en base avec unicité ticker + date de séance. |
-| **Job digest et alertes** | Container Apps Job, 17:00 UTC | Compose le résumé de clôture et détecte les variations de watchlist supérieures à 3 %. Écrit dans l'outbox seulement, n'envoie jamais directement. |
+| **Job digest et alertes** | Container Apps Job, 17:00 UTC | Compose le résumé de clôture pour les abonnés dont le solde le permet et détecte les variations de watchlist supérieures à 3 %. Écrit dans l'outbox seulement, n'envoie jamais directement. Le worker vide l'outbox à 20 messages par minute au total, un seul message par personne, pour ne pas ressembler à du spam. |
 | **PostgreSQL Flexible Server** | Base unique | Données de marché historisées, fondamentaux, actualités, profils utilisateurs, watchlist, ledger de crédits, mémoire des conversations, conseils archivés, outbox. |
 | **Blob Storage** | Stockage objet | Pages HTML et PDF bruts de chaque ingestion. Sert d'audit et de fixtures pour les tests du scraper. |
 | **Dashboard admin** | Static Web App | Templates de digest, file d'envoi et son état, utilisateurs, soldes, recharges, bouton de pause d'urgence des envois. |
@@ -185,7 +187,7 @@ Chaque utilisateur dispose d'un solde de crédits. Le prix est fixe par type d'a
 | Analyse d'une action | 150 |
 | Comparaison de 2 à 3 actions | 250 |
 | Résumé de clôture du jour | 20, une seule fois par séance |
-| Mot-clé « recharge », commande « solde » | 0 |
+| Mots-clés « recharge », « solde », « résumé oui », « résumé stop » | 0 |
 
 Règles :
 
@@ -193,6 +195,7 @@ Règles :
 - **Recharge : 1000 crédits pour 500 FCFA**, un seul pack. L'utilisateur écrit « recharge » à tout moment, même avec un solde positif. Les crédits s'additionnent et n'expirent pas.
 - **Solde insuffisant pour l'action demandée** : Mblo indique le coût, le solde restant, le mot-clé de recharge et le barème. L'utilisateur peut continuer avec des actions moins chères jusqu'à 0.
 - **Solde à 0** : message de recharge seul, aucun appel au LLM.
+- **Résumé quotidien sur abonnement explicite seulement**. Proposé une fois à l'inscription, activable et désactivable par « résumé oui » et « résumé stop ». À 17:00, seuls les abonnés dont le solde couvre les 20 crédits sont servis. Sinon rien n'est envoyé ni débité, et un rappel de recharge part une seule fois. Un résumé déjà reçu dans la journée est renvoyé gratuitement sur demande.
 - **Ledger** : chaque mouvement (bienvenue, débit, recharge) est une ligne datée avec sa référence. Le solde est toujours la somme des lignes. Une notification CinetPay reçue deux fois est ignorée grâce à sa référence de transaction.
 - Le barème vit en base et se modifie depuis le dashboard admin.
 
