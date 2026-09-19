@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mblo"
+version = "0.1.0"
+description = "Agent WhatsApp d'aide à la décision sur les actions BRVM"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2",
+    "psycopg[binary]",
+    "alembic",
+    "httpx",
+    "beautifulsoup4",
+    "lxml",
+    "pypdf",
+    "pydantic>=2",
+    "pydantic-settings",
+    "anthropic",
+    "langfuse",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+mblo-ingest = "mblo.ingest.run:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
